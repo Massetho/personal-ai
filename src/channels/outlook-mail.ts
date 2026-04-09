@@ -88,13 +88,17 @@ async function getAccessToken(app: PublicClientApplication): Promise<string> {
   // Device code flow
   const request: DeviceCodeRequest = {
     scopes: SCOPES,
-    deviceCodeCallback: (response: Record<string, unknown>) => {
-      const msg = (response.message ??
-        response.userCode ??
-        JSON.stringify(response)) as string;
-      process.stdout.write('\n=== Microsoft Authentication Required ===\n');
-      process.stdout.write(msg + '\n');
-      process.stdout.write('=========================================\n\n');
+    deviceCodeCallback: (response: Record<string, unknown> | null) => {
+      try {
+        const msg = response
+          ? ((response.message ?? response.userCode ?? JSON.stringify(response)) as string)
+          : '(no device code message)';
+        process.stdout.write('\n=== Microsoft Authentication Required ===\n');
+        process.stdout.write(msg + '\n');
+        process.stdout.write('=========================================\n\n');
+      } catch {
+        // never let a logging failure crash the auth flow
+      }
     },
   };
   const result = await app.acquireTokenByDeviceCode(request);
