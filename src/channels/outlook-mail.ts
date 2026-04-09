@@ -155,6 +155,29 @@ async function graphPatch(
     );
 }
 
+/** Move a message to a named folder (looks up folder ID by display name). */
+async function moveMessage(
+  token: string,
+  messageId: string,
+  folderName: string,
+): Promise<void> {
+  const data = await graphGet(
+    token,
+    `/me/mailFolders?$filter=displayName eq '${encodeURIComponent(folderName)}'&$select=id,displayName`,
+  );
+  const folder = data.value?.[0];
+  if (!folder) {
+    throw new Error(`Outlook Mail: folder "${folderName}" not found`);
+  }
+  await graphPost(token, `/me/messages/${messageId}/move`, {
+    destinationId: folder.id,
+  });
+  logger.info(
+    { messageId, folderName },
+    `Outlook Mail: moved message to "${folderName}"`,
+  );
+}
+
 // ── Channel factory ────────────────────────────────────────────────────────
 
 function createOutlookMailChannel(opts: {
@@ -255,11 +278,16 @@ function createOutlookMailChannel(opts: {
     },
 
     async sendMessage(jid: string, text: string) {
-      // jid format: "mail:<originalMessageId>" or "reply:<conversationId>"
+      // jid format: "mail:<originalMessageId>"
       const token = await refreshToken();
-
-      // Extract original message id to get subject + recipient for reply
       const originalId = jid.startsWith('mail:') ? jid.slice(5) : null;
+
+      // Special command: "__MOVE__:<folderName>" — moves the message to a folder
+      if (text.startsWith('__MOVE__:') && originalId) {
+        const folderName = text.slice('__MOVE__:'.length).trim();
+        await moveMessage(token, originalId, folderName);
+        return;
+      }
 
       if (originalId) {
         // Send as reply
