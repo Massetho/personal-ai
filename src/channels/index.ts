@@ -9,5 +9,7 @@
 
 // telegram
 
-// whatsapp
 import './whatsapp.js';
+import './outlook-mail.js';
+import './outlook-calendar.js';
+import './news-feed.js';

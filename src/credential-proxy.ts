@@ -14,8 +14,29 @@ import { createServer, Server } from 'http';
 import { request as httpsRequest } from 'https';
 import { request as httpRequest, RequestOptions } from 'http';
 
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
 import { readEnvFile } from './env.js';
 import { logger } from './logger.js';
+
+const CLAUDE_CREDS_PATH = path.join(
+  os.homedir(),
+  '.claude',
+  '.credentials.json',
+);
+
+/** Read the latest OAuth token from Claude Code credentials (auto-refreshed by VS Code extension). */
+function readClaudeOAuthToken(): string | undefined {
+  try {
+    const raw = fs.readFileSync(CLAUDE_CREDS_PATH, 'utf-8');
+    const data = JSON.parse(raw);
+    return data?.claudeAiOauth?.accessToken ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type AuthMode = 'api-key' | 'oauth';
 
@@ -73,8 +94,9 @@ export function startCredentialProxy(
           // x-api-key only, so they pass through without token injection.
           if (headers['authorization']) {
             delete headers['authorization'];
-            if (oauthToken) {
-              headers['authorization'] = `Bearer ${oauthToken}`;
+            const liveToken = readClaudeOAuthToken() || oauthToken;
+            if (liveToken) {
+              headers['authorization'] = `Bearer ${liveToken}`;
             }
           }
         }
